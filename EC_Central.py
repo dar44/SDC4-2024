@@ -14,7 +14,7 @@ import json
 from cliente import Cliente 
 from confluent_kafka import Producer, Consumer, KafkaException, KafkaError
 import sys
-from variablesGlobales import FORMATO, HEADER, VER, FILAS, COLUMNAS, IP_API, IP_CTC
+from variablesGlobales import FORMATO, HEADER, VER, FILAS, COLUMNAS, IP_API, IP_CTC, IP_REG
 import time
 import secrets
 import ssl
@@ -208,6 +208,19 @@ def autenticarTaxi(taxiID):
     global taxis
     idErroneo = True
     token = secrets.token_hex(16 // 2)
+
+    # Comprobar si el taxi está registrado en EC_Registry
+    try:
+        resp = requests.get(f"https://{IP_REG}:5002/is_registered/{taxiID}", verify=False)
+        data = resp.json()
+        if resp.status_code != 200 or not data.get("registered"):
+            print("Taxi no registrado en Registry")
+            logging.info(f"Intento de autenticación de taxi {taxiID} sin registro")
+            return
+    except Exception as e:
+        print(f"Error consultando Registry: {e}")
+        logging.info(f"Error consultando Registry para taxi {taxiID}: {e}")
+        return
 
     conn = sqlite3.connect('easycab.db')
     cursor = conn.cursor()
@@ -492,11 +505,20 @@ def recibirMovimientoEngine():
             else:
                 print(f'Error while receiving message: {msg.error()}' )
                 break
-        mensaje = msg.value().decode(FORMATO)
-        #print("Mensaje recibido")
+        mensaje_completo = msg.value().decode(FORMATO)
+        if '%' in mensaje_completo:
+            mensaje, token_recibido = mensaje_completo.split('%')
+            token_recibido = token_recibido.strip()
+        else:
+            mensaje = mensaje_completo
+            token_recibido = ''
         consumer.close()
-        # Deserializar el mensaje y crear una instancia de Cliente
         taxiData = mensaje.split(':')
+        token_registrado = obtenerTokenTaxi(int(taxiData[0]))
+        if token_registrado != token_recibido:
+            print(f"Token inválido para taxi {taxiData[0]}")
+            logging.info(f"Token inválido para taxi {taxiData[0]}")
+            continue
         taxirecibido = Taxi(
             id=int(taxiData[0]),
             estado=taxiData[1],
@@ -788,6 +810,9 @@ if __name__ == "__main__":
 
         
         servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_cert_chain(certfile=cert, keyfile=cert)
+        servidor = context.wrap_socket(servidor, server_side=True)
         servidor.bind(ADDR)
         
 
