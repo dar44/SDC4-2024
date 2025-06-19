@@ -109,7 +109,7 @@
         // Obtener la matriz de taxis, destinos y clientes
         async function fetchMap() {
             try {
-                const response = await fetch(`http://${IP_API}:5000/map`);
+                const response = await fetch(`http://${IP_API}:5000/map/data`);
                 const data = await response.json();
                 const map = data.map;
                 const destinos = data.destinos;
@@ -241,9 +241,6 @@
             fetchMap();
         }, 5000);
 
-        setInterval(() => {
-            fetchLogs
-        }, 5003);
         // Inicializar datos al cargar la página
         fetchTrafficStatus();
         fetchTaxis();

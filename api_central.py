@@ -1,17 +1,34 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect, render_template
 from flask_cors import CORS
 import sqlite3
 import threading
 import time
 from variablesGlobales import DB_PATH
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder='front',
+    static_url_path='/static',
+    template_folder='templates',
+)
 CORS(app)  # Habilita CORS para todas las rutas
 
 # Variables globales simuladas
 taxis = []
 matriz = [[[] for _ in range(20)] for _ in range(20)] 
 traffic_status = {"status": "OK"}
+
+# --- Rutas para servir la interfaz web ---
+@app.route('/')
+def root_index():
+    """Redirige a la vista del mapa."""
+    return redirect('/map')
+
+
+@app.route('/map', methods=['GET'])
+def map_view():
+    """Sirve la página con el tablero del mapa."""
+    return render_template('index.html')
 
 # Función para obtener destinos desde la base de datos
 def obtener_destinos():
