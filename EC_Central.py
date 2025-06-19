@@ -18,6 +18,8 @@ from variablesGlobales import FORMATO, HEADER, VER, FILAS, COLUMNAS, IP_API, IP_
 import time
 import secrets
 import ssl
+from cryptography.fernet import Fernet, InvalidToken
+import os
 
 logging.basicConfig(filename='auditoriaEC.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 # Función para enviar la matriz de taxis a api_central
@@ -63,6 +65,29 @@ urlUPDATE = f"http://{IP}:5000/update_map"
 urlTRAFFIC = f"http://{IP2}:5001/traffic_status"
 traffic_status = ""
 cert = 'cert.pem'
+KEY_DIR = 'keys'
+
+def load_key(taxi_id):
+    path = os.path.join(KEY_DIR, f'key_{taxi_id}.key')
+    if not os.path.exists(path):
+        key = Fernet.generate_key()
+        os.makedirs(KEY_DIR, exist_ok=True)
+        with open(path, 'wb') as f:
+            f.write(key)
+    else:
+        with open(path, 'rb') as f:
+            key = f.read()
+    return key
+
+def encrypt_msg(taxi_id, message: str) -> bytes:
+    key = load_key(taxi_id)
+    f = Fernet(key)
+    return f.encrypt(message.encode(FORMATO))
+
+def decrypt_msg(taxi_id, ciphertext: bytes) -> str:
+    key = load_key(taxi_id)
+    f = Fernet(key)
+    return f.decrypt(ciphertext).decode(FORMATO)
 
 #############################################################
 #               FUNCION PARA EL OPENWEATHER                 #
@@ -472,7 +497,8 @@ def moverTaxi(taxi):
         mensaje = f"{taxi.imprimirTaxi()} % {token}"
         print("mensaje taxi")
 
-    producer.produce(topicMovimiento, key=None, value=mensaje.encode(FORMATO), callback=comprobacion)
+    encrypted = encrypt_msg(taxi.id, mensaje)
+    producer.produce(topicMovimiento, key=str(taxi.id).encode(), value=encrypted, callback=comprobacion)
     time.sleep(1)
     producer.flush()
 
@@ -506,7 +532,14 @@ def recibirMovimientoEngine():
             else:
                 print(f'Error while receiving message: {msg.error()}' )
                 break
-        mensaje_completo = msg.value().decode(FORMATO)
+        taxi_id = msg.key().decode() if msg.key() else ''
+        ciphertext = msg.value()
+        try:
+            mensaje_completo = decrypt_msg(taxi_id, ciphertext)
+        except (InvalidToken, Exception):
+            print(f"Imposible conectar con Taxi {taxi_id}. Mensajes no comprensibles")
+            logging.info(f"Imposible conectar con Taxi {taxi_id}. Mensajes no comprensibles")
+            continue
         if '%' in mensaje_completo:
             mensaje, token_recibido = mensaje_completo.split('%')
             token_recibido = token_recibido.strip()
@@ -640,7 +673,9 @@ def envioMapa():
     else:
         mensaje = imprimirTaxis()
     
-    producer.produce(topicMapa, key=None, value=mensaje.encode(FORMATO), callback=comprobacion)
+    for taxi in taxis:
+        encrypted = encrypt_msg(taxi.id, mensaje)
+        producer.produce(topicMapa, key=str(taxi.id).encode(), value=encrypted, callback=comprobacion)
     time.sleep(1)
     producer.flush()
 

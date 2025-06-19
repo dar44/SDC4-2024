@@ -2,11 +2,19 @@ from flask import Flask, request, jsonify
 import sqlite3
 import atexit
 import os
+TOKEN_FILE = 'registry_secret.txt'
+
+def load_token():
+    try:
+        with open(TOKEN_FILE, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
 
 app = Flask(__name__)
 
 # Ruta al directorio compartido en la red
-shared_directory = r'\\BONILLA\abab4-ggr23'
+shared_directory = r'\\Desktop-ee5cv8c\sd dar44 definitivo'
 db_path = os.path.join(shared_directory, 'easycab.db')
 
 # Initialize the database
@@ -37,8 +45,14 @@ def clear_taxis_table():
     conn.close()
 
 # Register a new taxi
+def authorized(request):
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    return token == load_token()
+
 @app.route('/register', methods=['POST'])
 def register_taxi():
+    if not authorized(request):
+        return jsonify({'error': 'Unauthorized'}), 401
     data = request.get_json()
     taxi_id = data.get('id')
     
@@ -59,6 +73,8 @@ def register_taxi():
 # Deregister a taxi
 @app.route('/deregister/<int:taxi_id>', methods=['DELETE'])
 def deregister_taxi(taxi_id):
+    if not authorized(request):
+        return jsonify({'error': 'Unauthorized'}), 401
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('DELETE FROM taxis WHERE id = ?', (taxi_id,))
@@ -71,6 +87,8 @@ def deregister_taxi(taxi_id):
 # Check if a taxi is registered
 @app.route('/is_registered/<int:taxi_id>', methods=['GET'])
 def is_registered(taxi_id):
+    if not authorized(request):
+        return jsonify({'error': 'Unauthorized'}), 401
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('SELECT id FROM taxis WHERE id = ?', (taxi_id,))

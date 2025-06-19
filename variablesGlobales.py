@@ -9,8 +9,9 @@ CANTIDADTAXI = 4
 FILAS = 20
 COLUMNAS = 20
 TAMANO_CASILLA = 35
-CITY = 'Alicante,ES'
-APICTC = 'c31073c6041c4725d2cf4e489f449034'
+# La ciudad y la API Key para el CTC se cargan desde ficheros
+#CITY = 'Alicante,ES'
+#APICTC = 'c31073c6041c4725d2cf4e489f449034'
 IP_API = 'localhost'
 IP_CTC = 'localhost'
 IP_REG = 'localhost'

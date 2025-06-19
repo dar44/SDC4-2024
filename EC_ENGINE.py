@@ -17,6 +17,7 @@ import tkinter as tk
 import requests
 import json
 import ssl
+from cryptography.fernet import Fernet, InvalidToken
 
 
 #############################################################
@@ -30,11 +31,45 @@ CambioEstado = False
 estado_actual = "ok"
 taxi_token = None
 IP = IP_REG
+REG_TOKEN_FILE = 'registry_secret.txt'
+KEY_DIR = 'keys'
+
+def load_key(taxi_id):
+    path = os.path.join(KEY_DIR, f'key_{taxi_id}.key')
+    if not os.path.exists(path):
+        key = Fernet.generate_key()
+        os.makedirs(KEY_DIR, exist_ok=True)
+        with open(path, 'wb') as f:
+            f.write(key)
+    else:
+        with open(path, 'rb') as f:
+            key = f.read()
+    return key
+
+def encrypt_msg(taxi_id, message: str) -> bytes:
+    key = load_key(taxi_id)
+    f = Fernet(key)
+    return f.encrypt(message.encode(FORMATO))
+
+def decrypt_msg(taxi_id, ciphertext: bytes) -> str:
+    key = load_key(taxi_id)
+    f = Fernet(key)
+    return f.decrypt(ciphertext).decode(FORMATO)
+
+def load_registry_token():
+    try:
+        with open(REG_TOKEN_FILE, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
 
 # Función para registrar el taxi
 def register_taxi(taxi_id):
     url = f"https://{IP}:5002/register"
-    headers = {'Content-Type': 'application/json'}
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {load_registry_token()}'
+    }
     data = json.dumps({"id": taxi_id})
     response = requests.post(url, headers=headers, data=data, verify=False)  # verify=False para ignorar SSL warnings
     return response
@@ -42,7 +77,10 @@ def register_taxi(taxi_id):
 # Función para dar de baja el taxi
 def deregister_taxi(taxi_id):
     url = f"https://{IP}:5002/deregister/{taxi_id}"
-    response = requests.delete(url, verify=False)  # verify=False para ignorar SSL warnings
+    headers = {
+        'Authorization': f'Bearer {load_registry_token()}'
+    }
+    response = requests.delete(url, headers=headers, verify=False)  # verify=False para ignorar SSL warnings
     return response
 
 def menu(taxiID):
@@ -284,7 +322,13 @@ def esperandoTaxi( ):
                 print(f'Error while receiving message: {msg.error()}' )
                 break
 
-        mensaje_completo = msg.value().decode(FORMATO)
+        taxi_id = msg.key().decode() if msg.key() else taxiID
+        ciphertext = msg.value()
+        try:
+            mensaje_completo = decrypt_msg(taxi_id, ciphertext)
+        except (InvalidToken, Exception):
+            print("Mensajes con central no comprensibles")
+            continue
         # Separar el mensaje y el token
         mensaje, tokenTaxi = mensaje_completo.split('%')
         mensaje = mensaje.strip()
@@ -341,7 +385,8 @@ def enviarMovimiento(taxi):
         mensaje = f"{taxi.imprimirTaxi()} % {taxi_token}"
     else:
         mensaje = taxi.imprimirTaxi()
-    producer.produce(topicRecorrido, key=None, value=mensaje.encode(FORMATO), callback=comprobacion)
+    encrypted = encrypt_msg(taxi.id, mensaje)
+    producer.produce(topicRecorrido, key=str(taxi.id).encode(), value=encrypted, callback=comprobacion)
     time.sleep(1)
     producer.flush()
     
@@ -398,7 +443,11 @@ def reciboMapa():
             else:
                 print(f'Error while receiving message: {msg.error()}' )
                 break
-        mensaje = msg.value().decode(FORMATO)
+        try:
+            mensaje = decrypt_msg(taxiID, msg.value())
+        except (InvalidToken, Exception):
+            print("Mensajes con central no comprensibles")
+            continue
         taxis = []
         consumer.close()
         taxisstr = mensaje.split("/")
