@@ -121,7 +121,7 @@ class Tablero:
     def restablerTablero(self):
         for i in range(self.numFilas):
             for j in range(self.numColumnas):
-                self.cambiar_color_celda(i, j, "white")
+                self.cambiarColor(i, j, "white")
 
     def recibirDestinos(self, parametro):
         global destinos

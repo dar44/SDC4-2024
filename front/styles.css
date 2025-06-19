@@ -126,7 +126,10 @@ body {
     overflow-y: auto;
     max-height: 200px;
 }
-
+#audit-logs {
+    max-height: 300px;
+    white-space: pre-wrap;
+}
 button {
     padding: 10px;
     font-size: 1em;
