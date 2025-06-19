@@ -11,9 +11,9 @@ COLUMNAS = 20
 TAMANO_CASILLA = 35
 CITY = 'Alicante,ES'
 APICTC = 'c31073c6041c4725d2cf4e489f449034'
-IP_API = '172.20.10.2'
-IP_CTC = '172.20.10.4'
-IP_REG = '172.20.10.6'
+IP_API = 'localhost'
+IP_CTC = 'localhost'
+IP_REG = 'localhost'
  #Borovoy,RU
 
 # 172.21.48.1

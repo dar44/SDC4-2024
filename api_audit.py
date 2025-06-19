@@ -1,8 +1,10 @@
 from flask import Flask, Response, jsonify
+from flask_cors import CORS
 import time
 import os
 
 app = Flask(__name__)
+CORS(app)
 LOG_FILE = 'auditoriaEC.log'
 
 @app.route('/logs', methods=['GET'])
@@ -34,4 +36,4 @@ def stream_logs():
     return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5002)
+    app.run(debug=True, host='0.0.0.0', port=5003)

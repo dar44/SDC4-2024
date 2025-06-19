@@ -37,7 +37,7 @@
     </div>
 
     <script>
-        const IP_API = "172.20.10.2";
+        const IP_API = "localhost"; // Cambia esto por la IP de tu API si es necesario
         const tablero = document.getElementById('tablero');
         const numeros = document.getElementById('numeros');
         const filaNumeros = document.getElementById('fila-numeros');
@@ -210,7 +210,7 @@
 
         async function fetchLogs() {
             try {
-                const response = await fetch(`http://${IP_API}:5002/logs`);
+                const response = await fetch(`http://${IP_API}:5003/logs`);
                 const data = await response.json();
                 logsContainer.innerHTML = '';
                 data.logs.split('\n').forEach(line => {
@@ -225,7 +225,7 @@
             }
         }
 
-        const logSource = new EventSource(`http://${IP_API}:5002/logs/stream`);
+        const logSource = new EventSource(`http://${IP_API}:5003/logs/stream`);
         logSource.onmessage = (event) => {
             const div = document.createElement('div');
             div.textContent = event.data;

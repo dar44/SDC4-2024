@@ -28,20 +28,21 @@ FINALIZADO = False
 BASE = False
 CambioEstado = False
 estado_actual = "ok"
+taxi_token = None
 IP = IP_REG
 
 # Función para registrar el taxi
 def register_taxi(taxi_id):
-    url = f"http://{IP}:5002/register"
+    url = f"https://{IP}:5002/register"
     headers = {'Content-Type': 'application/json'}
     data = json.dumps({"id": taxi_id})
-    response = requests.post(url, headers=headers, data=data)
+    response = requests.post(url, headers=headers, data=data, verify=False)  # verify=False para ignorar SSL warnings
     return response
 
 # Función para dar de baja el taxi
 def deregister_taxi(taxi_id):
-    url = f"http://{IP}:5002/deregister/{taxi_id}"
-    response = requests.delete(url)
+    url = f"https://{IP}:5002/deregister/{taxi_id}"
+    response = requests.delete(url, verify=False)  # verify=False para ignorar SSL warnings
     return response
 
 def menu(taxiID):
@@ -241,7 +242,11 @@ def conectarCentral(taxiID):
     global conexion
 
     ADDR_C = (SERVER_C, PORT_C)
-    context = ssl._create_unverified_context()
+    #context = ssl._create_unverified_context()
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    context.load_verify_locations('cert.pem')
     with socket.create_connection(ADDR_C) as sock:
         conexion = context.wrap_socket(sock, server_hostname=SERVER_C)
         print(f"Establecida conexión con Central en [{ADDR_C}]")
@@ -255,6 +260,7 @@ def conectarCentral(taxiID):
 def esperandoTaxi( ):
     global CambioEstado
     global taxis
+    global taxi_token
     #print("Esperando taxi")
     consumer_conf = {
         'bootstrap.servers': f'{SERVER_K}:{PORT_K}',
@@ -282,7 +288,7 @@ def esperandoTaxi( ):
         # Separar el mensaje y el token
         mensaje, tokenTaxi = mensaje_completo.split('%')
         mensaje = mensaje.strip()
-        tokenTaxi = tokenTaxi.strip()
+        taxi_token = tokenTaxi.strip()
         #print("Mensaje recibido")
         consumer.close()
         taxiData = mensaje.split(':')
@@ -325,12 +331,16 @@ def esperandoTaxi( ):
 #############################################################
 def enviarMovimiento(taxi):
     global taxis
+    global taxi_token
     producer_conf = {'bootstrap.servers': f'{SERVER_K}:{PORT_K}'}
     producer = Producer(producer_conf)
     
 
     topicRecorrido = 'recorrido'
-    mensaje = taxi.imprimirTaxi()
+    if taxi_token:
+        mensaje = f"{taxi.imprimirTaxi()} % {taxi_token}"
+    else:
+        mensaje = taxi.imprimirTaxi()
     producer.produce(topicRecorrido, key=None, value=mensaje.encode(FORMATO), callback=comprobacion)
     time.sleep(1)
     producer.flush()
