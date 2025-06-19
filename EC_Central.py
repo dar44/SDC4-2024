@@ -14,7 +14,7 @@ import json
 from cliente import Cliente 
 from confluent_kafka import Producer, Consumer, KafkaException, KafkaError
 import sys
-from variablesGlobales import FORMATO, HEADER, VER, FILAS, COLUMNAS, IP_API, IP_CTC, IP_REG
+from variablesGlobales import FORMATO, HEADER, VER, FILAS, COLUMNAS, IP_API, IP_CTC, IP_REG, DB_PATH
 import time
 import secrets
 import ssl
@@ -66,6 +66,15 @@ urlTRAFFIC = f"http://{IP2}:5001/traffic_status"
 traffic_status = ""
 cert = 'cert.pem'
 KEY_DIR = 'keys'
+
+# Utilidad para reiniciar hilos en caso de fallo
+def run_with_recovery(target, *args, **kwargs):
+    while True:
+        try:
+            target(*args, **kwargs)
+        except Exception as e:
+            logging.error(f"{target.__name__} failed: {e}")
+            time.sleep(5)
 
 def load_key(taxi_id):
     path = os.path.join(KEY_DIR, f'key_{taxi_id}.key')
@@ -248,7 +257,7 @@ def autenticarTaxi(taxiID):
         return
     
     # Conectar a la base de datos
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("SELECT id, estado, posicionX, posicionY, destino, destinoX, destinoY, ocupado FROM taxis")
@@ -280,7 +289,7 @@ def autenticarTaxi(taxiID):
         print("Ese taxi no existe")
     conn.close()
     if idErroneo == False:
-        conn = sqlite3.connect('easycab.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         # Insertar un nuevo taxi en la tabla taxis2
         cursor.execute('''
@@ -300,19 +309,19 @@ def autenticarTaxi(taxiID):
 def esperandoCliente():
     clienteActualizado = False
     while True:
-       
-        consumer_conf = {
-            'bootstrap.servers': f'{SERVER_K}:{PORT_K}',
-            'group.id': 'grupo_consumidor2',
-            'auto.offset.reset': 'earliest'
-        }
-        consumer = Consumer(consumer_conf)
-        topicPos = 'posicion'
+        try:
+            consumer_conf = {
+                'bootstrap.servers': f'{SERVER_K}:{PORT_K}',
+                'group.id': 'grupo_consumidor2',
+                'auto.offset.reset': 'earliest'
+            }
+            consumer = Consumer(consumer_conf)
+            topicPos = 'posicion'
 
-        consumer.subscribe([topicPos])
-        
-        while True:
-            msg = consumer.poll(1.0)
+            consumer.subscribe([topicPos])
+
+            while True:
+                msg = consumer.poll(1.0)
             if msg is None:
                 continue
             mensaje = msg.value().decode(FORMATO)
@@ -347,7 +356,7 @@ def esperandoCliente():
                     cliente.estado = "Sin Taxi"
                     clienteActualizado = True
                     consumer.close()
-                    conn = sqlite3.connect('easycab.db')
+                    conn = sqlite3.connect(DB_PATH)
                     cursor = conn.cursor()
                     # Actualizar la tabla clientes
                     cursor.execute('''
@@ -368,7 +377,7 @@ def esperandoCliente():
             if clienteActualizado == False:
                 clientes.append(nuevoCliente)
                 consumer.close()
-                conn = sqlite3.connect('easycab.db')
+                conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 # Insertar un nuevo cliente en la tabla clientes
                 cursor.execute('''
@@ -390,7 +399,10 @@ def esperandoCliente():
             for cliente in clientes:
                 print(cliente)
             break
-
+        except Exception as e:
+            logging.error(f"Error en esperandoCliente: {e}")
+            time.sleep(5)
+           
 #############################################################
 #          FUNCIÓN QUE ASIGNA CLIENTE AL TAXI               #
 #############################################################
@@ -452,7 +464,7 @@ def comprobacion(error, msg):
         pass
 
 def obtenerTokenTaxi(taxi_id):
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT token FROM taxis2 WHERE id = ?", (taxi_id,))
     token = cursor.fetchone()
@@ -461,7 +473,7 @@ def obtenerTokenTaxi(taxi_id):
 
 def generarGuardarToken(taxi_id):
     token = secrets.token_hex(16 // 2)
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("UPDATE taxis2 SET token = ? WHERE id = ?", (token, taxi_id))
     conn.commit()
@@ -511,114 +523,102 @@ def moverTaxi(taxi):
 def recibirMovimientoEngine():
     global taxis
     global traffic_status
-
-    #print("Recibiendo mensaje")
-    consumer_conf = {
-        'bootstrap.servers': f'{SERVER_K}:{PORT_K}',
-        'group.id': 'grupo_consumidor',
-        'auto.offset.reset': 'earliest'
-    }
-    consumer = Consumer(consumer_conf)
-    topicRecorrido = 'recorrido'
-
-    consumer.subscribe([topicRecorrido])
     while True:
-        msg = consumer.poll(1.0)
-        if msg is None:
-            continue
-        if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
-                continue
-            else:
-                print(f'Error while receiving message: {msg.error()}' )
-                break
-        taxi_id = msg.key().decode() if msg.key() else ''
-        ciphertext = msg.value()
         try:
-            mensaje_completo = decrypt_msg(taxi_id, ciphertext)
-        except (InvalidToken, Exception):
-            print(f"Imposible conectar con Taxi {taxi_id}. Mensajes no comprensibles")
-            logging.info(f"Imposible conectar con Taxi {taxi_id}. Mensajes no comprensibles")
-            continue
-        if '%' in mensaje_completo:
-            mensaje, token_recibido = mensaje_completo.split('%')
-            token_recibido = token_recibido.strip()
-        else:
-            mensaje = mensaje_completo
-            token_recibido = ''
-            
-        consumer.close()
+            consumer_conf = {
+                'bootstrap.servers': f'{SERVER_K}:{PORT_K}',
+                'group.id': 'grupo_consumidor',
+                'auto.offset.reset': 'earliest'
+            }
+            consumer = Consumer(consumer_conf)
+            topicRecorrido = 'recorrido'
 
-        taxiData = mensaje.split(':')
-        token_registrado = obtenerTokenTaxi(int(taxiData[0]))
-        if token_registrado != token_recibido:
-            print(f"Token inválido para taxi {taxiData[0]}")
-            logging.info(f"Token inválido para taxi {taxiData[0]}")
-            continue
-        taxirecibido = Taxi(
-            id=int(taxiData[0]),
-            estado=taxiData[1],
-            posicionX=int(taxiData[2]),
-            posicionY=int(taxiData[3]),
-            destino=taxiData[4],
-            destinoX=int(taxiData[5]),
-            destinoY=int(taxiData[6]),
-            ocupado=taxiData[7],
-            clienteX=int(taxiData[8]),
-            clienteY=int(taxiData[9]),
-            clienteId=taxiData[10],
-            base = taxiData[11]
-        )
-        conn = sqlite3.connect('easycab.db')
-        cursor = conn.cursor()
-        # Actualizar la tabla taxis2
-        cursor.execute('''
-            UPDATE taxis2
-            SET posX = ?, posY = ?, estado = ?, clienteId = ?
-            WHERE id = ?
-        ''', (taxirecibido.posicionX, taxirecibido.posicionY, taxirecibido.estado, taxirecibido.clienteId, taxirecibido.id))
-        
-        # Confirmar los cambios
-        conn.commit()
-        
-        # Cerrar la conexión
-        conn.close()
-
-        print("Nueva posición del taxi: ", taxirecibido.id, " recibida" , "\n")
-        #print(taxirecibido)
-        addTaxi(taxirecibido)
-        #Actualizar taxi en el array de todos los taxis
-
-        for taxi in taxis:
-            if int(taxi.id) == taxirecibido.id:
-                if(taxirecibido.ocupado == "False"):
-                    taxi.ocupado = False
+            consumer.subscribe([topicRecorrido])
+            while True:
+                msg = consumer.poll(1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        continue
+                    else:
+                        print(f'Error while receiving message: {msg.error()}')
+                        break
+                taxi_id = msg.key().decode() if msg.key() else ''
+                ciphertext = msg.value()
+                try:
+                    mensaje_completo = decrypt_msg(taxi_id, ciphertext)
+                except (InvalidToken, Exception):
+                    print(f"Imposible conectar con Taxi {taxi_id}. Mensajes no comprensibles")
+                    logging.info(f"Imposible conectar con Taxi {taxi_id}. Mensajes no comprensibles")
+                    continue
+                if '%' in mensaje_completo:
+                    mensaje, token_recibido = mensaje_completo.split('%')
+                    token_recibido = token_recibido.strip()
                 else:
-                    taxi.ocupado = True
-                taxi.estado = taxirecibido.estado
-                taxi.posicionX = taxirecibido.posicionX
-                taxi.posicionY = taxirecibido.posicionY
-                taxi.destino = taxirecibido.destino
-                taxi.destinoX = taxirecibido.destinoX
-                taxi.destinoY = taxirecibido.destinoY
-                taxi.clienteX = taxirecibido.clienteX
-                taxi.clienteY = taxirecibido.clienteY
-                taxi.clienteId = taxirecibido.clienteId
-                #if TodosBase == True:
-                if traffic_status == "KO":
-                    taxi.base = 1
-                else:  
-                    taxi.base = 0
-                if(taxi.estado == "END") :
-                   print("El taxi " , taxi.id , " ha acabado el servicio")
-                   avisarCliente(taxi, taxi.clienteId)
-                if (taxi.estado == "ENDB") :
-                   print("El taxi " , taxi.id , " se ha desconectado")
-                   borrarToken(taxi.id)
-                   avisarCliente(taxi, taxi.clienteId)
-                else:
-                    envioMapa()
-        break
+                    mensaje = mensaje_completo
+                    token_recibido = ''
+    
+                consumer.close()
+
+                taxiData = mensaje.split(':')
+                token_registrado = obtenerTokenTaxi(int(taxiData[0]))
+                if token_registrado != token_recibido:
+                    print(f"Token inválido para taxi {taxiData[0]}")
+                    logging.info(f"Token inválido para taxi {taxiData[0]}")
+                    continue
+                taxirecibido = Taxi(
+                    id=int(taxiData[0]),
+                    estado=taxiData[1],
+                    posicionX=int(taxiData[2]),
+                    posicionY=int(taxiData[3]),
+                    destino=taxiData[4],
+                    destinoX=int(taxiData[5]),
+                    destinoY=int(taxiData[6]),
+                    ocupado=taxiData[7],
+                    clienteX=int(taxiData[8]),
+                    clienteY=int(taxiData[9]),
+                    clienteId=taxiData[10],
+                    base=taxiData[11]
+                )
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE taxis2
+                    SET posX = ?, posY = ?, estado = ?, clienteId = ?
+                    WHERE id = ?
+                ''', (taxirecibido.posicionX, taxirecibido.posicionY, taxirecibido.estado, taxirecibido.clienteId, taxirecibido.id))
+                conn.commit()
+                conn.close()
+
+                print("Nueva posición del taxi: ", taxirecibido.id, " recibida" , "\n")
+                addTaxi(taxirecibido)
+                for taxi in taxis:
+                    if int(taxi.id) == taxirecibido.id:
+                        taxi.ocupado = False if taxirecibido.ocupado == "False" else True
+                        taxi.estado = taxirecibido.estado
+                        taxi.posicionX = taxirecibido.posicionX
+                        taxi.posicionY = taxirecibido.posicionY
+                        taxi.destino = taxirecibido.destino
+                        taxi.destinoX = taxirecibido.destinoX
+                        taxi.destinoY = taxirecibido.destinoY
+                        taxi.clienteX = taxirecibido.clienteX
+                        taxi.clienteY = taxirecibido.clienteY
+                        taxi.clienteId = taxirecibido.clienteId
+                        taxi.base = 1 if traffic_status == "KO" else 0
+                        if taxi.estado == "END":
+                            print("El taxi ", taxi.id, " ha acabado el servicio")
+                            avisarCliente(taxi, taxi.clienteId)
+                        if taxi.estado == "ENDB":
+                            print("El taxi ", taxi.id, " se ha desconectado")
+                            borrarToken(taxi.id)
+                            avisarCliente(taxi, taxi.clienteId)
+                        else:
+                            envioMapa()
+                break
+        except Exception as e:
+            logging.error(f"Error en recibirMovimientoEngine: {e}")
+            time.sleep(5)        
 
 #############################################################
 #      FUNCIÓN QUE ENVÍA COMUNICACIÓN A ENGINE POR KAFKA    #
@@ -627,7 +627,7 @@ def recibirMovimientoEngine():
 def borrarToken(id):
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('easycab.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Ejecutar la consulta DELETE
@@ -747,7 +747,7 @@ def leer_mapa(filename):
     global destinos
 
      # Conectar a la base de datos
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     # Crear la tabla destinos
@@ -784,7 +784,7 @@ def leer_mapa(filename):
 #          FUNCIÓN QUE INICIALIZA LA BASE DE DATOS          #
 #############################################################
 def crearTablas():
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     # Crear la tabla clientes
@@ -857,9 +857,9 @@ if __name__ == "__main__":
         #map_thread = threading.Thread(target=iniciarMapa)
         #map_thread.start()
 
-        kafka_thread = threading.Thread(target=esperandoCliente)
+        kafka_thread = threading.Thread(target=run_with_recovery, args=(esperandoCliente,))
         kafka_thread.start()
-        traffic_thread = threading.Thread(target=fetch_traffic_status)
+        traffic_thread = threading.Thread(target=run_with_recovery, args=(fetch_traffic_status,))
         traffic_thread.start()
 
         servidor.listen()

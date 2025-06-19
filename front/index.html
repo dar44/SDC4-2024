@@ -89,7 +89,8 @@
 
                 taxis.forEach(taxi => {
                     const item = document.createElement('div');
-                    item.textContent = `ID: ${taxi.id}, Posición: (${taxi.posX}, ${taxi.posY}), Estado: ${taxi.estado}`;
+                    const reg = taxi.registrado ? 'Registrado' : 'No registrado';
+                    item.textContent = `ID: ${taxi.id}, Posición: (${taxi.posX}, ${taxi.posY}), Estado: ${taxi.estado}, ${reg}, Token: ${taxi.token}`;
                     taxiList.appendChild(item);
 
                     // Actualizar el tablero con la posición del taxi

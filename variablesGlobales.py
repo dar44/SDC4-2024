@@ -15,6 +15,7 @@ TAMANO_CASILLA = 35
 IP_API = 'localhost'
 IP_CTC = 'localhost'
 IP_REG = 'localhost'
+DB_PATH = 'easycab.db'
  #Borovoy,RU
 
 # 172.21.48.1

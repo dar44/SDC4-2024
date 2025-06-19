@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import sqlite3
 import atexit
 import os
+from variablesGlobales import DB_PATH
 TOKEN_FILE = 'registry_secret.txt'
 
 def load_token():
@@ -14,8 +15,7 @@ def load_token():
 app = Flask(__name__)
 
 # Ruta al directorio compartido en la red
-shared_directory = r'\\Desktop-ee5cv8c\sd dar44 definitivo'
-db_path = os.path.join(shared_directory, 'easycab.db')
+db_path = DB_PATH
 
 # Initialize the database
 def init_db():

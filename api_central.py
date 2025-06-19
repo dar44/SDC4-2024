@@ -3,6 +3,7 @@ from flask_cors import CORS
 import sqlite3
 import threading
 import time
+from variablesGlobales import DB_PATH
 
 app = Flask(__name__)
 CORS(app)  # Habilita CORS para todas las rutas
@@ -14,7 +15,7 @@ traffic_status = {"status": "OK"}
 
 # Función para obtener destinos desde la base de datos
 def obtener_destinos():
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('SELECT id, fila, columna FROM destinos')
     destinos = cursor.fetchall()
@@ -23,7 +24,7 @@ def obtener_destinos():
 
 # Función para obtener clientes desde la base de datos
 def obtener_clientes():
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('SELECT id, posX, posY FROM clientes')
     clientes = cursor.fetchall()
@@ -32,7 +33,7 @@ def obtener_clientes():
 
 # Función para obtener taxis desde la base de datos
 def obtener_taxis():
-    conn = sqlite3.connect('easycab.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('SELECT id, posX, posY FROM taxis2')
     taxis = cursor.fetchall()
@@ -64,12 +65,25 @@ def update_map():
 # Endpoint: Listar taxis autenticados
 @app.route('/taxis', methods=['GET'])
 def get_taxis():
-    return jsonify([{
-        "id": taxi["id"],
-        "posX": taxi["posX"],
-        "posY": taxi["posY"],
-        "estado": taxi["estado"]
-    } for taxi in taxis])
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT t.id, t.posX, t.posY, t.estado, t.token, r.id
+        FROM taxis2 t LEFT JOIN taxis r ON r.id = t.id
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    taxis_info = []
+    for row in rows:
+        taxis_info.append({
+            "id": row[0],
+            "posX": row[1],
+            "posY": row[2],
+            "estado": row[3],
+            "token": row[4],
+            "registrado": True if row[5] is not None else False
+        })
+    return jsonify(taxis_info)
 
 # Endpoint: Añadir un taxi
 @app.route('/taxis', methods=['POST'])
