@@ -199,7 +199,13 @@ def addCliente(taxi):
     if clienteX is None or clienteY is None:
         raise ValueError("Coordenadas del cliente no son válidas.")
 
-    cliente = Cliente(id=taxi.clienteId, destino=taxi.destino, posX=clienteX, posY=clienteY, estado=taxi.estado)
+    cliente = Cliente(
+        id=taxi.clienteId,
+        destino=taxi.destino,
+        posX=clienteX,
+        posY=clienteY,
+        estado=f"Taxi {taxi.id}"
+    )
 
     fila = cliente.posX
     columna = cliente.posY
@@ -430,6 +436,19 @@ def asignarTaxi(cliente):
             taxi.clienteX = cliente.posX
             taxi.clienteY = cliente.posY
             taxi.clienteId = cliente.id
+            
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE clientes SET estado = ? WHERE id = ?",
+                (cliente.estado, cliente.id),
+            )
+            cursor.execute(
+                "UPDATE taxis2 SET clienteId = ? WHERE id = ?",
+                (cliente.id, taxi.id),
+            )
+            conn.commit()
+            conn.close()
             #if TodosBase == True:
             if traffic_status == "KO":
                 taxi.base = 1
@@ -522,7 +541,7 @@ def moverTaxi(taxi):
 
     encrypted = encrypt_msg(taxi.id, mensaje)
     producer.produce(topicMovimiento, key=str(taxi.id).encode(), value=encrypted, callback=comprobacion)
-    time.sleep(1)
+    time.sleep(0.2)
     producer.flush()
 
     
@@ -687,7 +706,7 @@ def envioMapa():
     for taxi in taxis:
         encrypted = encrypt_msg(taxi.id, mensaje)
         producer.produce(topicMapa, key=str(taxi.id).encode(), value=encrypted, callback=comprobacion)
-    time.sleep(1)
+    time.sleep(0.2)
     producer.flush()
 
     
@@ -748,7 +767,7 @@ def avisarCliente(taxiEnd, clienteId):
 
     producer.produce(topicDestino, key=None, value=mensaje.encode(FORMATO), callback=comprobacion)
     producer.flush()
-    time.sleep(1)
+    time.sleep(0.2)
     esperandoCliente()
     
 #############################################################

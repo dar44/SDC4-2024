@@ -11,6 +11,8 @@ class Cliente:
         self.color ="yellow"
 
     def getColor(self):
+        if self.estado and str(self.estado).startswith("Taxi"):
+            return "lightgreen"
         return "yellow"
     
     def __str__(self):
@@ -29,7 +31,7 @@ class Cliente:
             "posX": self.posX,
             "posY": self.posY,
             "estado": self.estado,
-            "color": self.color
+            "color": self.getColor()
         }
 
     

@@ -93,13 +93,7 @@
                     item.textContent = `ID: ${taxi.id}, Posición: (${taxi.posX}, ${taxi.posY}), Estado: ${taxi.estado}, ${reg}, Token: ${taxi.token}`;
                     taxiList.appendChild(item);
 
-                    // Actualizar el tablero con la posición del taxi
-                    const casilla = document.getElementById(`casilla-${taxi.posX}-${taxi.posY}`);
-                    if (casilla) {
-                        casilla.classList.remove('casilla-taxi-ok', 'casilla-taxi-ko', 'casilla-destino', 'casilla-cliente');
-                        casilla.classList.add(taxi.estado === "ok" ? 'casilla-taxi-ok' : 'casilla-taxi-ko');
-                        casilla.textContent = taxi.id;
-                    }
+                    
                 });
             } catch (error) {
                 document.getElementById('error-messages').textContent = `Error fetching taxis: ${error}`;
@@ -120,7 +114,7 @@
                 for (let i = 0; i < 20; i++) {
                     for (let j = 0; j < 20; j++) {
                         const casilla = document.getElementById(`casilla-${i}-${j}`);
-                        casilla.classList.remove('casilla-taxi-ok', 'casilla-taxi-ko', 'casilla-destino', 'casilla-cliente');
+                        casilla.classList.remove('casilla-taxi-ok', 'casilla-taxi-ko', 'casilla-destino', 'casilla-cliente', 'casilla-ocupada');
                         casilla.textContent = '';
                     }
                 }
@@ -131,45 +125,30 @@
                         columna.forEach(elemento => {
                             const casilla = document.getElementById(`casilla-${i}-${j}`);
                             if (casilla) {
-                                if (elemento.color === "yellow") { // Es un cliente
+                                if (elemento.estado === "ok" || elemento.estado === "ko") {
+                                    if (elemento.clienteId && elemento.clienteId !== '-' && elemento.clienteId !== 'None') {
+                                        casilla.classList.add('casilla-ocupada');
+                                        casilla.textContent = `${elemento.id}${elemento.clienteId}`;
+                                    } else {
+                                        casilla.classList.add(elemento.estado === "ok" ? 'casilla-taxi-ok' : 'casilla-taxi-ko');
+                                        casilla.textContent = elemento.id;
+                                    }
+                                } else if (elemento.color === "light green" || elemento.color === "lightgreen") {
+                                    casilla.classList.add('casilla-ocupada');
+                                    casilla.textContent = elemento.id;
+                                } else if (elemento.color === "yellow") {
                                     casilla.classList.add('casilla-cliente');
-                                } else if (elemento.estado === "ok" || elemento.estado === "ko") { // Es un taxi
-                                    casilla.classList.add(elemento.estado === "ok" ? 'casilla-taxi-ok' : 'casilla-taxi-ko');
-                                } else if (elemento.color === "light blue") { // Es un destino
+                                    casilla.textContent = elemento.id;
+                                } else if (elemento.color === "light blue") {
                                     casilla.classList.add('casilla-destino');
+                                    casilla.textContent = elemento.id;
                                 }
-                                casilla.textContent = elemento.id;
                             }
                         });
                     });
                 });
 
-                // Actualizar el tablero con los destinos
-                destinos.forEach(destino => {
-                    const casilla = document.getElementById(`casilla-${destino.x}-${destino.y}`);
-                    if (casilla) {
-                        casilla.classList.add('casilla-destino');
-                        casilla.textContent = destino.id;
-                    }
-                });
-
-                // Actualizar el tablero con los clientes
-                clientes.forEach(cliente => {
-                    const casilla = document.getElementById(`casilla-${cliente.x}-${cliente.y}`);
-                    if (casilla) {
-                        casilla.classList.add('casilla-cliente');
-                        casilla.textContent = cliente.id;
-                    }
-                });
-
-                // Actualizar el tablero con los taxis
-                taxis.forEach(taxi => {
-                    const casilla = document.getElementById(`casilla-${taxi.x}-${taxi.y}`);
-                    if (casilla) {
-                        casilla.classList.add('casilla-taxi-ok');
-                        casilla.textContent = taxi.id;
-                    }
-                });
+                
             } catch (error) {
                 document.getElementById('error-messages').textContent = `Error fetching map: ${error}`;
             }

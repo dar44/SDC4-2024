@@ -547,3 +547,16 @@
 2025-06-20 13:07:44,393 INFO Central se encuentra escuchando a los demás componentes del proyecto. IP: 192.168.1.83
 2025-06-20 13:19:02,042 INFO Central se encuentra escuchando a los demás componentes del proyecto. IP: 192.168.1.83
 2025-06-20 13:22:12,206 INFO Se avisa al cliente de que ya ha acabado el servicio. IP: 192.168.1.83
+2025-06-20 13:26:44,879 INFO Se avisa al cliente de que ya ha acabado el servicio. IP: 192.168.1.83
+2025-06-20 13:30:34,872 INFO Se avisa al cliente de que ya ha acabado el servicio. IP: 192.168.1.83
+2025-06-20 13:35:15,289 ERROR Error en esperandoCliente: UNIQUE constraint failed: clientes.id
+2025-06-20 13:49:03,804 INFO Central se encuentra escuchando a los demás componentes del proyecto. IP: 192.168.1.83
+2025-06-20 13:54:47,254 INFO Central se encuentra escuchando a los demás componentes del proyecto. IP: 192.168.1.83
+2025-06-20 13:54:51,292 INFO Se avisa al cliente de que no hay taxis disponibles. IP: 192.168.1.83
+2025-06-20 13:54:51,292 INFO Se avisa al cliente de que ya ha acabado el servicio. IP: 192.168.1.83
+2025-06-20 14:00:47,383 INFO Central se encuentra escuchando a los demás componentes del proyecto. IP: 192.168.1.83
+2025-06-20 14:02:42,952 INFO Token inválido para taxi 2
+2025-06-20 14:02:42,952 ERROR Error en recibirMovimientoEngine: Consumer closed
+2025-06-20 14:04:36,661 INFO Central se encuentra escuchando a los demás componentes del proyecto. IP: 192.168.1.83
+2025-06-20 14:04:59,583 INFO Se avisa al cliente de que no hay taxis disponibles. IP: 192.168.1.83
+2025-06-20 14:04:59,583 INFO Se avisa al cliente de que ya ha acabado el servicio. IP: 192.168.1.83

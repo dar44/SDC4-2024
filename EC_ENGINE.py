@@ -387,7 +387,7 @@ def enviarMovimiento(taxi):
         mensaje = taxi.imprimirTaxi()
     encrypted = encrypt_msg(taxi.id, mensaje)
     producer.produce(topicRecorrido, key=str(taxi.id).encode(), value=encrypted, callback=comprobacion)
-    time.sleep(1)
+    time.sleep(0.2)
     producer.flush()
     
     if taxi.estado == "END":
