@@ -157,5 +157,5 @@ if __name__ == "__main__":
         leerDestinos(archivo, posicionX, posicionY)
         enchufoAplicacion(primerMensaje)
     else:
-        print("Necesito estos argumentos: <KAFKA IP> <Puerto KAFKA> <ID CLIENTE>")
+        print("Necesito estos argumentos: <KAFKA IP> <Puerto KAFKA> <ID CLIENTE> <Posicion X> <Posicion Y>")
     #establecer_conexion()

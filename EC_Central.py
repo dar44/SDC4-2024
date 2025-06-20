@@ -66,6 +66,14 @@ urlTRAFFIC = f"http://{IP2}:5001/traffic_status"
 traffic_status = ""
 cert = 'cert.pem'
 KEY_DIR = 'keys'
+REG_TOKEN_FILE = 'registry_secret.txt'
+
+def load_registry_token():
+    try:
+        with open(REG_TOKEN_FILE, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
 
 # Utilidad para reiniciar hilos en caso de fallo
 def run_with_recovery(target, *args, **kwargs):
@@ -245,7 +253,12 @@ def autenticarTaxi(taxiID):
 
      # Comprobar si el taxi está registrado en EC_Registry
     try:
-        resp = requests.get(f"https://{IP_REG}:5002/is_registered/{taxiID}", verify=False)
+        headers = {'Authorization': f'Bearer {load_registry_token()}'}
+        resp = requests.get(
+            f"https://{IP_REG}:5002/is_registered/{taxiID}",
+            headers=headers,
+            verify=False,
+        )
         data = resp.json()
         if resp.status_code != 200 or not data.get("registered"):
             print("Taxi no registrado en Registry")
