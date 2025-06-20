@@ -208,6 +208,20 @@
         }
         // Obtener y mostrar logs de auditoría
         const logsContainer = document.getElementById('audit-logs');
+        function addLogLine(line) {
+            const div = document.createElement('div');
+            div.classList.add('log-entry');
+            if (line.includes('ERROR')) {
+                div.classList.add('error');
+            } else if (line.includes('WARNING')) {
+                div.classList.add('warning');
+            } else {
+                div.classList.add('info');
+            }
+            div.textContent = line;
+            logsContainer.appendChild(div);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
 
         async function fetchLogs() {
             try {
@@ -216,9 +230,7 @@
                 logsContainer.innerHTML = '';
                 data.logs.split('\n').forEach(line => {
                     if (line.trim()) {
-                        const div = document.createElement('div');
-                        div.textContent = line;
-                        logsContainer.appendChild(div);
+                        addLogLine(line);
                     }
                 });
             } catch (error) {
@@ -228,10 +240,7 @@
 
         const logSource = new EventSource(`http://${IP_API}:5003/logs/stream`);
         logSource.onmessage = (event) => {
-            const div = document.createElement('div');
-            div.textContent = event.data;
-            logsContainer.appendChild(div);
-            logsContainer.scrollTop = logsContainer.scrollHeight;
+            addLogLine(event.data);
         };
 
         // Actualizar datos periódicamente
@@ -242,7 +251,7 @@
         }, 5000);
 
         setInterval(() => {
-            fetchLogs
+            fetchLogs();
         }, 5003);
         // Inicializar datos al cargar la página
         fetchTrafficStatus();

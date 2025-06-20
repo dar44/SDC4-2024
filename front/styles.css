@@ -129,6 +129,29 @@ body {
 #audit-logs {
     max-height: 300px;
     white-space: pre-wrap;
+    background-color: #fafafa;
+    border: 1px solid #d0d0d0;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+.log-entry {
+    padding: 2px 4px;
+    margin-bottom: 2px;
+    border-bottom: 1px solid #d0d0d0;
+    font-family: monospace;
+}
+
+.log-entry.info {
+    color: #2e7d32;
+}
+
+.log-entry.error {
+    color: #c62828;
+}
+
+.log-entry.warning {
+    color: #f9a825;
 }
 button {
     padding: 10px;

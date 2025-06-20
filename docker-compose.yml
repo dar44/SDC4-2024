@@ -8,7 +8,7 @@ services:
       - "2181:2181"
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.2.1 #Poner latest sino no funciona
     depends_on:
       - zookeeper
     environment:
@@ -22,7 +22,7 @@ services:
       - "9092:9092"
 
   create-topics:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.2.1
     depends_on:
       - kafka
     entrypoint: ["/bin/sh", "-c", "sleep 20; \

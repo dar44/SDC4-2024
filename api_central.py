@@ -22,10 +22,10 @@ traffic_status = {"status": "OK"}
 @app.route('/')
 def root_index():
     """Redirige a la vista del mapa."""
-    return redirect('/map')
+    return redirect('/map_page')
 
 
-@app.route('/map', methods=['GET'])
+@app.route('/map_page', methods=['GET'])
 def map_view():
     """Sirve la página con el tablero del mapa."""
     return render_template('index.html')
