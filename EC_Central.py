@@ -155,6 +155,7 @@ def eliminarTaxi(id):
                 if taxi.id == id:
                     
                     del matriz[fila][columna][idx]
+                    enviar_matriz_a_api_central()
                     return True
                 
     return False
@@ -168,8 +169,9 @@ def addDestino(destinos):
         if not matriz[fila-1][columna-1]:
             matriz[fila-1][columna-1] = []
         matriz[fila-1][columna-1].append(destino)
+    enviar_matriz_a_api_central()
 
-    #enviar_matriz_a_api_central()
+
 
 def addTaxi(taxi):
     global matriz
@@ -183,7 +185,7 @@ def addTaxi(taxi):
         matriz[fila-1][columna-1] = []
     matriz[fila-1][columna-1].insert(0, taxi)
 
-    #enviar_matriz_a_api_central()
+    enviar_matriz_a_api_central()
 
 def addTaxisAutenticados(taxi):
     addTaxi(taxi)
@@ -205,7 +207,7 @@ def addCliente(taxi):
         matriz[fila-1][columna-1] = []
     matriz[fila-1][columna-1].append(cliente) 
 
-    #enviar_matriz_a_api_central() 
+    enviar_matriz_a_api_central() 
 
 
 def limpiarCliente(taxi):
@@ -216,6 +218,7 @@ def limpiarCliente(taxi):
     if fila == taxi.clienteX and columna == taxi.clienteY:
         if matriz[fila-1][columna-1]:
             matriz[fila-1][columna-1] = [elemento for elemento in matriz[fila-1][columna-1] if not (isinstance(elemento, Cliente) and elemento.id == taxi.clienteId)]
+            enviar_matriz_a_api_central()
 
 
 def manejarTaxi(conn, addr):
@@ -335,83 +338,78 @@ def esperandoCliente():
 
             while True:
                 msg = consumer.poll(1.0)
-            if msg is None:
-                continue
-            mensaje = msg.value().decode(FORMATO)
-            if mensaje == "END":
-                print("El cliente ya no tiene mas servicios")
-                consumer.close()
-                esperandoCliente()
-                break
-            if msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:
+                if msg is None:
                     continue
-                else:
-                    print(f'Error while receiving message: {msg.error()}' )
-                    break
-            mensaje = msg.value().decode(FORMATO)
-            clienteData = mensaje.split(':')
-            nuevoCliente = Cliente(
-                id=clienteData[0],
-                destino=clienteData[1],
-                posX=clienteData[2],
-                posY=clienteData[3],
-                estado=clienteData[4],
-            )
-            print("\n", "He recibido el cliente ", nuevoCliente.id , "\n")
-            #print("Tu puto cliente")
-            #print(nuevoCliente)
-            for cliente in clientes:
-                if cliente.id == nuevoCliente.id:
-                    cliente.destino = nuevoCliente.destino
-                    cliente.posX = nuevoCliente.posX
-                    cliente.posY = nuevoCliente.posY
-                    cliente.estado = "Sin Taxi"
-                    clienteActualizado = True
+
+                if msg.error():
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        continue
+                    else:
+                        print(f'Error while receiving message: {msg.error()}')
+                        break
+
+                mensaje = msg.value().decode(FORMATO)
+                if mensaje == "END":
+                    print("El cliente ya no tiene mas servicios")
                     consumer.close()
+                    break
+
+                clienteData = mensaje.split(':')
+                nuevoCliente = Cliente(
+                    id=clienteData[0],
+                    destino=clienteData[1],
+                    posX=clienteData[2],
+                    posY=clienteData[3],
+                    estado=clienteData[4],
+                )
+
+                print("\n", "He recibido el cliente", nuevoCliente.id, "\n")
+
+                clienteActualizado = False
+                for cliente in clientes:
+                    if cliente.id == nuevoCliente.id:
+                        cliente.destino = nuevoCliente.destino
+                        cliente.posX = nuevoCliente.posX
+                        cliente.posY = nuevoCliente.posY
+                        cliente.estado = "Sin Taxi"
+                        clienteActualizado = True
+
+                        conn = sqlite3.connect(DB_PATH)
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            UPDATE clientes
+                            SET posX = ?, posY = ?, estado = ?
+                            WHERE id = ?
+                        ''', (nuevoCliente.posX, nuevoCliente.posY,
+                              nuevoCliente.estado, nuevoCliente.id))
+                        conn.commit()
+                        conn.close()
+
+                        asignarTaxi(cliente)
+                        break
+
+                if not clienteActualizado:
+                    clientes.append(nuevoCliente)
+
                     conn = sqlite3.connect(DB_PATH)
                     cursor = conn.cursor()
-                    # Actualizar la tabla clientes
                     cursor.execute('''
-                        UPDATE clientes
-                        SET posX = ?, posY = ?, estado = ?
-                        WHERE id = ?
-                    ''', (nuevoCliente.posX, nuevoCliente.posY, nuevoCliente.estado, nuevoCliente.id))
-                    
-                    # Confirmar los cambios
+                        INSERT INTO clientes (id, posX, posY, estado)
+                        VALUES (?, ?, ?, ?)
+                    ''', (nuevoCliente.id, nuevoCliente.posX,
+                          nuevoCliente.posY, nuevoCliente.estado))
                     conn.commit()
-                    
-                    # Cerrar la conexión
                     conn.close()
-                    cliente_thread = threading.Thread(target=esperandoCliente)
-                    cliente_thread.start()
-            
-                    asignarTaxi(cliente)
-            if clienteActualizado == False:
-                clientes.append(nuevoCliente)
-                consumer.close()
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                # Insertar un nuevo cliente en la tabla clientes
-                cursor.execute('''
-                    INSERT INTO clientes (id, posX, posY, estado)
-                    VALUES (?, ?, ?, ?)
-                ''', (nuevoCliente.id, nuevoCliente.posX, nuevoCliente.posY, nuevoCliente.estado))
-                
-                # Confirmar los cambios
-                conn.commit()
-                
-                # Cerrar la conexión
-                conn.close()
-                
-                cliente_thread = threading.Thread(target=esperandoCliente)
-                cliente_thread.start()
-            
-                asignarTaxi(nuevoCliente)
-            print("Lista de clientes:")
-            for cliente in clientes:
-                print(cliente)
-            break
+
+                    asignarTaxi(nuevoCliente)
+
+                enviar_matriz_a_api_central()
+
+                print("Lista de clientes:")
+                for cliente in clientes:
+                    print(cliente)
+                break
+
         except Exception as e:
             logging.error(f"Error en esperandoCliente: {e}")
             time.sleep(5)
@@ -434,9 +432,9 @@ def asignarTaxi(cliente):
             taxi.clienteId = cliente.id
             #if TodosBase == True:
             if traffic_status == "KO":
-                taxi.base == 1
+                taxi.base = 1
             else :
-                taxi.base == 0
+                taxi.base = 0
             addCliente(taxi)
             #print(cliente)
             print(f"Taxi {taxi.id} asignado a cliente: {taxi.clienteId}") 
