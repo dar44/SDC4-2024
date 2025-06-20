@@ -208,7 +208,7 @@
         }
         // Obtener y mostrar logs de auditoría
         const logsContainer = document.getElementById('audit-logs');
-        function addLogLine(line) {
+        function createLogDiv(line) {
             const div = document.createElement('div');
             div.classList.add('log-entry');
             if (line.includes('ERROR')) {
@@ -219,13 +219,18 @@
                 div.classList.add('info');
             }
             div.textContent = line;
-            logsContainer.appendChild(div);
-            logsContainer.scrollTop = logsContainer.scrollHeight;
+            return div;
+        }
+
+        function addLogLine(line) {
+            const div = createLogDiv(line);
+            logsContainer.prepend(div);
+            logsContainer.scrollTop = 0;
         }
 
         async function fetchLogs() {
             try {
-                const response = await fetch(`http://${IP_API}:5003/logs`);
+                const response = await fetch(`http://${IP_API}:5003/logs?lines=50`);
                 const data = await response.json();
                 logsContainer.innerHTML = '';
                 data.logs.split('\n').forEach(line => {
