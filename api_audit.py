@@ -63,8 +63,8 @@ LOG_PAGE_TEMPLATE = '''
                 div.classList.add('info');
             }
             div.textContent = line;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            container.prepend(div);
+            container.scrollTop = 0;
         }
 
         async function fetchLogs() {
@@ -113,7 +113,7 @@ def stream_logs():
                         yield f"data: {line}\n\n"
                     last_size = current_size
             time.sleep(1)
-    return Response(generate(), mimetype='text/event-stream')
+    return Response(generate(), mimetype='text/event-stream', headers={'Cache-Control': 'no-cache'})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)
